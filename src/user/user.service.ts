@@ -38,8 +38,6 @@ export class UserService {
       },
       data: {
         restaurantName: userBody.restaurantName,
-        // firstName: userBody.firstName,
-        // lastName: userBody.lastName,
         phone: userBody.phone,
         address: userBody.address,
         city: userBody.city,

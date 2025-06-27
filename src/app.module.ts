@@ -23,6 +23,9 @@ import { ClientController } from './client/client.controller';
 import { ClientService } from './client/client.service';
 import { ClientModule } from './client/client.module';
 import { MailService } from './mailer.service';
+import { TablesService } from './tables/tables.service';
+import { TablesController } from './tables/tables.controller';
+import { TablesModule } from './tables/tables.module';
 
 @Module({
   imports: [
@@ -33,6 +36,7 @@ import { MailService } from './mailer.service';
     ArticleModule,
     EventModule,
     ClientModule,
+    TablesModule,
   ],
   controllers: [
     AppController,
@@ -42,6 +46,7 @@ import { MailService } from './mailer.service';
     ArticleController,
     EventController,
     ClientController,
+    TablesController,
   ],
   providers: [
     AppService,
@@ -53,6 +58,7 @@ import { MailService } from './mailer.service';
     EventService,
     ClientService,
     MailService,
+    TablesService,
   ],
 })
 export class AppModule {}

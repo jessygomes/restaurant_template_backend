@@ -5,6 +5,7 @@ export class CreateReservationAdminDto {
   guests: number;
   tableIds: string[];
   userId: string;
+  status: string;
 
   client: {
     firstName: string;

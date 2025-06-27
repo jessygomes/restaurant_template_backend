@@ -78,13 +78,14 @@ export class ReservationService {
   //! CONFIMER UNE RESERVATION
   async confirmReservation(dto: ConfirmReservationDto) {
     try {
-      // Trouver la réservation correspondante
+      const { reservationId, status, tableIds } = dto;
+
       const reservation = await this.prisma.reservation.findUnique({
-        where: { id: dto.reservationId },
+        where: { id: reservationId },
         include: {
           tables: true,
-          client: true, // 👈 Ajoute ça pour récupérer le client
-          user: true, // 👈 Facultatif : pour récupérer le nom du restaurant
+          client: true,
+          user: true,
         },
       });
 
@@ -92,50 +93,50 @@ export class ReservationService {
         throw new NotFoundException('Réservation introuvable');
       }
 
-      // Vérifie qu'elle n'est pas déjà confirmée
-      if (reservation.status === 'Confirmée') {
-        throw new BadRequestException('La réservation est déjà confirmée');
-      }
+      if (status === 'Confirmée') {
+        if (!tableIds || !Array.isArray(tableIds) || tableIds.length === 0) {
+          throw new BadRequestException('Aucune table sélectionnée');
+        }
 
-      // Vérifie que les tables sont libres
-      const conflictingTables = await this.prisma.reservationOnTable.findMany({
-        where: {
-          tableId: { in: dto.tableIds },
-          reservation: {
-            date: reservation.date,
-            arrivalTime: reservation.arrivalTime,
-            status: 'Confirmée',
+        // Vérifie que les tables sont libres
+        const conflictingTables = await this.prisma.reservationOnTable.findMany(
+          {
+            where: {
+              tableId: { in: tableIds },
+              reservation: {
+                date: reservation.date,
+                arrivalTime: reservation.arrivalTime,
+                status: 'Confirmée',
+              },
+            },
           },
-        },
-      });
-
-      if (conflictingTables.length > 0) {
-        throw new ConflictException(
-          'Une ou plusieurs tables sont déjà réservées à cette heure.',
         );
-      }
 
-      // Mise à jour du statut
-      await this.prisma.reservation.update({
-        where: { id: dto.reservationId },
-        data: { status: 'Confirmée' },
-      });
+        if (conflictingTables.length > 0) {
+          throw new ConflictException(
+            'Une ou plusieurs tables sont déjà réservées à cette heure.',
+          );
+        }
 
-      // Association des tables
-      await this.prisma.reservationOnTable.createMany({
-        data: dto.tableIds.map((tableId) => ({
-          reservationId: dto.reservationId,
-          tableId,
-        })),
-      });
+        // Réassocier les tables : d'abord vider
+        await this.prisma.reservationOnTable.deleteMany({
+          where: { reservationId: dto.reservationId },
+        });
 
-      // Envoi de l’email de confirmation
-      // Vérifie que l'email du client est présent avant d'envoyer l'email
-      if (reservation.client?.email) {
-        await this.mailService.sendMail({
-          to: reservation.client.email,
-          subject: 'Votre réservation est confirmée 🍽️',
-          html: `
+        // Puis recréer
+        await this.prisma.reservationOnTable.createMany({
+          data: tableIds.map((tableId) => ({
+            reservationId: dto.reservationId,
+            tableId,
+          })),
+        });
+
+        // Envoi d'email
+        if (reservation.client?.email) {
+          await this.mailService.sendMail({
+            to: reservation.client.email,
+            subject: 'Votre réservation est confirmée 🍽️',
+            html: `
             <h2>Bonjour ${reservation.client.firstName},</h2>
             <p>Votre réservation au restaurant <strong>${reservation.user?.restaurantName ?? 'notre établissement'}</strong> est bien confirmée.</p>
             <ul>
@@ -145,8 +146,15 @@ export class ReservationService {
             </ul>
             <p>Nous vous remercions pour votre confiance et vous attendons avec plaisir !</p>
           `,
-        });
+          });
+        }
       }
+
+      // Mise à jour du statut uniquement (dans tous les cas)
+      await this.prisma.reservation.update({
+        where: { id: dto.reservationId },
+        data: { status: dto.status },
+      });
 
       return { success: true };
     } catch (error) {
@@ -157,6 +165,7 @@ export class ReservationService {
 
   //! RESERVER UNE TABLE COTE RESTAURATEUR
   async createReservationByAdmin(dto: CreateReservationAdminDto) {
+    console.log('Création de réservation côté admin:', dto);
     try {
       // Vérifier si le client existe déjà dans la base de données
       const existingClient = await this.prisma.client.findUnique({
@@ -176,7 +185,7 @@ export class ReservationService {
         }));
 
       const date = new Date(dto.date);
-      const arrival = new Date(dto.arrivalTime);
+      const arrival = new Date(`${dto.date}T${dto.arrivalTime}`); // date complète avec l’heure
 
       // Vérifier que les tables ne sont pas déjà occupées à cette heure
       const conflicts = await this.prisma.reservationOnTable.findMany({
@@ -235,10 +244,11 @@ export class ReservationService {
   }
 
   //! MODIFIER UNE RESERVATION
-  async updateReservation(dto: UpdateReservationDto) {
+  async updateReservation(resaId: string, dto: UpdateReservationDto) {
+    console.log('Mise à jour de la réservation:', resaId, dto);
     try {
       const reservation = await this.prisma.reservation.findUnique({
-        where: { id: dto.reservationId },
+        where: { id: resaId },
         include: {
           tables: true,
         },
@@ -247,9 +257,11 @@ export class ReservationService {
       if (!reservation) throw new NotFoundException('Réservation introuvable');
 
       const date = dto.date ? new Date(dto.date) : reservation.date;
-      const arrivalTime = dto.arrivalTime
-        ? new Date(dto.arrivalTime)
-        : reservation.arrivalTime;
+
+      const arrivalTime =
+        dto.arrivalTime && dto.date
+          ? new Date(`${dto.date}T${dto.arrivalTime}:00`)
+          : reservation.arrivalTime;
 
       // Vérification des conflits si les tables sont changées
       if (dto.tableIds && dto.tableIds.length > 0) {
@@ -257,10 +269,10 @@ export class ReservationService {
           where: {
             tableId: { in: dto.tableIds },
             reservation: {
-              NOT: { id: dto.reservationId }, // Exclure cette résa
+              NOT: { id: resaId }, // Exclure cette résa
               date,
               arrivalTime,
-              status: 'Confirmée',
+              status: reservation.status, // Vérifier le même statut
             },
           },
         });
@@ -273,25 +285,71 @@ export class ReservationService {
 
         // Supprimer les anciennes tables
         await this.prisma.reservationOnTable.deleteMany({
-          where: { reservationId: dto.reservationId },
+          where: { reservationId: resaId },
         });
 
         // Ajouter les nouvelles tables
         await this.prisma.reservationOnTable.createMany({
           data: dto.tableIds.map((tableId) => ({
-            reservationId: dto.reservationId,
+            reservationId: resaId,
             tableId,
           })),
         });
       }
 
+      // Modifier les infos du client si nécessaire
+      if (dto.client) {
+        const existingClient = await this.prisma.client.findUnique({
+          where: { email: dto.client.email },
+        });
+
+        if (existingClient) {
+          // Vérifier si les données ont changé avant de faire la mise à jour
+          const hasChanged =
+            existingClient.firstName !== dto.client.firstName ||
+            existingClient.lastName !== dto.client.lastName ||
+            existingClient.phone !== dto.client.phone ||
+            existingClient.email !== dto.client.email;
+
+          if (hasChanged) {
+            // Mettre à jour le client existant seulement si nécessaire
+            await this.prisma.client.update({
+              where: { id: existingClient.id },
+              data: {
+                firstName: dto.client.firstName,
+                lastName: dto.client.lastName,
+                phone: dto.client.phone,
+                email: dto.client.email,
+              },
+            });
+          }
+        } else {
+          // Créer un nouveau client
+          const newClient = await this.prisma.client.create({
+            data: {
+              email: dto.client.email,
+              firstName: dto.client.firstName,
+              lastName: dto.client.lastName,
+              phone: dto.client.phone,
+              userId: reservation.userId, // Associer au même utilisateur
+            },
+          });
+          // Mettre à jour la réservation avec le nouvel ID client
+          await this.prisma.reservation.update({
+            where: { id: resaId },
+            data: { clientId: newClient.id },
+          });
+        }
+      }
+
       // Mise à jour de la réservation
       await this.prisma.reservation.update({
-        where: { id: dto.reservationId },
+        where: { id: resaId },
         data: {
           date,
           arrivalTime,
           guests: dto.guests ?? reservation.guests,
+          status: dto.status ?? reservation.status, // Garder le statut actuel si non fourni
         },
       });
 
@@ -389,6 +447,24 @@ export class ReservationService {
     });
   }
 
+  //! VOIR TOUTES MES RESERVATIONS
+  async getAllReservations(userId: string) {
+    return this.prisma.reservation.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        client: true,
+        tables: {
+          include: { table: true },
+        },
+      },
+      orderBy: {
+        arrivalTime: 'asc',
+      },
+    });
+  }
+
   //! VOIR UNE SEULE RESERVATION
   async getReservationById(reservationId: string) {
     const reservation = await this.prisma.reservation.findUnique({
@@ -424,5 +500,59 @@ export class ReservationService {
     }
 
     return reservations;
+  }
+
+  async deleteReservation(reservationId: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+      include: {
+        client: true,
+        user: true,
+        tables: true,
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Réservation introuvable');
+    }
+
+    if (reservation.status === 'Annulée') {
+      throw new BadRequestException('La réservation est déjà annulée');
+    }
+
+    // Mettre à jour le statut
+    await this.prisma.reservation.update({
+      where: { id: reservationId },
+      data: { status: 'Annulée' },
+    });
+
+    // Supprimer les liens aux tables (nettoyage logique)
+    await this.prisma.reservationOnTable.deleteMany({
+      where: { reservationId },
+    });
+
+    // Envoi d’un e-mail au client
+    if (reservation.client?.email) {
+      await this.mailService.sendMail({
+        to: reservation.client.email,
+        subject: 'Annulation de votre réservation ❌',
+        html: `
+          <h2>Bonjour ${reservation.client.firstName},</h2>
+          <p>Nous vous informons que votre réservation au restaurant <strong>${reservation.user.restaurantName ?? 'notre établissement'}</strong> a été <strong>annulée</strong>.</p>
+          <ul>
+            <li><strong>Date :</strong> ${reservation.date.toLocaleDateString()}</li>
+            <li><strong>Heure :</strong> ${reservation.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</li>
+          </ul>
+
+          <p>Nous restons à votre disposition pour toute nouvelle réservation.</p>
+        `,
+      });
+    }
+
+    await this.prisma.reservation.delete({
+      where: { id: reservationId },
+    });
+
+    return { success: true };
   }
 }

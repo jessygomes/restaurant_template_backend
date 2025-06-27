@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -13,7 +14,6 @@ import { ReservationService } from './reservation.service';
 import { ConfirmReservationDto } from './dto/confirm-reservation.dto';
 import { CreateReservationAdminDto } from './dto/create-reservation-admin.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
-import { CancelReservationDto } from './dto/cancel-reservation.dto';
 
 @Controller('reservation')
 export class ReservationController {
@@ -23,6 +23,12 @@ export class ReservationController {
   @Get()
   async getByDay(@Query('userId') userId: string, @Query('date') date: string) {
     return this.reservationService.getReservationsByDay(userId, date);
+  }
+
+  //! VOIR TOUTES LES RESA
+  @Get('all')
+  async getAllReservations(@Query('userId') userId: string) {
+    return this.reservationService.getAllReservations(userId);
   }
 
   //! VOIR UNE RESA PAR ID
@@ -56,14 +62,17 @@ export class ReservationController {
   }
 
   //! MODIFIER UNE RESERVATION
-  @Patch('update')
-  async update(@Body() dto: UpdateReservationDto) {
-    return this.reservationService.updateReservation(dto);
+  @Patch('update/:resaId')
+  async update(
+    @Param('resaId') resaId: string,
+    @Body() dto: UpdateReservationDto,
+  ) {
+    return this.reservationService.updateReservation(resaId, dto);
   }
 
   //! ANNULER UNE RESERVATION
-  @Patch('cancel')
-  async cancel(@Body() dto: CancelReservationDto) {
-    return this.reservationService.cancelReservation(dto);
+  @Delete('delete/:resaId')
+  async deleteReservation(@Param('resaId') resaId: string) {
+    return this.reservationService.deleteReservation(resaId);
   }
 }
