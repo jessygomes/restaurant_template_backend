@@ -26,6 +26,9 @@ import { MailService } from './mailer.service';
 import { TablesService } from './tables/tables.service';
 import { TablesController } from './tables/tables.controller';
 import { TablesModule } from './tables/tables.module';
+import { MenuModule } from './menu/menu.module';
+import { MenuController } from './menu/menu.controller';
+import { MenuService } from './menu/menu.service';
 
 @Module({
   imports: [
@@ -37,6 +40,7 @@ import { TablesModule } from './tables/tables.module';
     EventModule,
     ClientModule,
     TablesModule,
+    MenuModule,
   ],
   controllers: [
     AppController,
@@ -47,6 +51,7 @@ import { TablesModule } from './tables/tables.module';
     EventController,
     ClientController,
     TablesController,
+    MenuController,
   ],
   providers: [
     AppService,
@@ -59,6 +64,7 @@ import { TablesModule } from './tables/tables.module';
     ClientService,
     MailService,
     TablesService,
+    MenuService,
   ],
 })
 export class AppModule {}
