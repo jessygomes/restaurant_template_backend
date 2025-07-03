@@ -15,11 +15,11 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateMenuDto } from './dto/create-menu.dto';
 
 @Controller('menu')
-@UseGuards(JwtAuthGuard)
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 
   @Post('category')
+  @UseGuards(JwtAuthGuard)
   createCategory(@Body() categoryBody: CreateCategoryDto) {
     return this.menuService.createCategory(categoryBody);
   }
@@ -30,11 +30,13 @@ export class MenuController {
   }
 
   @Delete('category/:id')
+  @UseGuards(JwtAuthGuard)
   deleteCategory(@Param('id') id: string) {
     return this.menuService.deleteCategory(id);
   }
 
   @Post('item')
+  @UseGuards(JwtAuthGuard)
   createMenuItem(@Body() menuItemBody: CreateMenuDto) {
     return this.menuService.createMenuItem(menuItemBody);
   }
@@ -55,11 +57,13 @@ export class MenuController {
   }
 
   @Patch('item/:id')
+  @UseGuards(JwtAuthGuard)
   updateMenuItem(@Param('id') id: string, @Body() menuItemBody: CreateMenuDto) {
     return this.menuService.updateMenuItem(id, menuItemBody);
   }
 
   @Delete('item/:id')
+  @UseGuards(JwtAuthGuard)
   deleteMenuItem(@Param('id') id: string) {
     return this.menuService.deleteMenuItem(id);
   }

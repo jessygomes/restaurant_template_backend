@@ -29,6 +29,12 @@ import { TablesModule } from './tables/tables.module';
 import { MenuModule } from './menu/menu.module';
 import { MenuController } from './menu/menu.controller';
 import { MenuService } from './menu/menu.service';
+import { ActusController } from './actus/actus.controller';
+import { ActusService } from './actus/actus.service';
+import { ActusModule } from './actus/actus.module';
+import { BannerController } from './banner/banner.controller';
+import { BannerService } from './banner/banner.service';
+import { BannerModule } from './banner/banner.module';
 
 @Module({
   imports: [
@@ -41,6 +47,8 @@ import { MenuService } from './menu/menu.service';
     ClientModule,
     TablesModule,
     MenuModule,
+    ActusModule,
+    BannerModule,
   ],
   controllers: [
     AppController,
@@ -52,6 +60,8 @@ import { MenuService } from './menu/menu.service';
     ClientController,
     TablesController,
     MenuController,
+    ActusController,
+    BannerController,
   ],
   providers: [
     AppService,
@@ -65,6 +75,8 @@ import { MenuService } from './menu/menu.service';
     MailService,
     TablesService,
     MenuService,
+    ActusService,
+    BannerService,
   ],
 })
 export class AppModule {}

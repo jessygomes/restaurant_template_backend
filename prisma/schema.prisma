@@ -232,6 +232,7 @@ model Event {
   image       String?    // URL image (optionnelle)
   banner      String?    // Phrase promotionnelle (optionnelle)
 
+
   userId      String
   user        User       @relation(fields: [userId], references: [id])
 
@@ -246,6 +247,7 @@ model Banner {
   title       String    // Texte affiché sur la bannière (ex: "Happy Hours !")
   image       String?   // Image d’arrière-plan (optionnelle)
   link        String?   // URL de redirection (vers un event, menu, etc.)
+  isActive    Boolean    @default(true) // Si l'événement est actif ou non
   
   startsAt    DateTime  // Début d’affichage
   endsAt      DateTime  // Fin d’affichage
