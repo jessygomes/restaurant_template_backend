@@ -37,6 +37,27 @@ export class TablesService {
         return isToday && start <= now && now <= end;
       });
 
+      // Trouver la prochaine réservation (confirmée et non terminée)
+      const upcomingReservations = table.reservations
+        .filter((r) => {
+          const res = r.reservation;
+          if (!res || res.status !== 'Confirmée' || res.isFinished === true)
+            return false;
+
+          const resDateTime = new Date(res.arrivalTime);
+          return resDateTime > now;
+        })
+        .sort((a, b) => {
+          const dateA = new Date(a.reservation.arrivalTime);
+          const dateB = new Date(b.reservation.arrivalTime);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+      const nextReservation =
+        upcomingReservations.length > 0
+          ? upcomingReservations[0].reservation
+          : null;
+
       return {
         id: table.id,
         name: table.name,
@@ -46,6 +67,15 @@ export class TablesService {
         createdAt: table.createdAt,
         updatedAt: table.updatedAt,
         isReserved: activeReservations.length > 0,
+        nextReservation: nextReservation
+          ? {
+              id: nextReservation.id,
+              date: nextReservation.date,
+              arrivalTime: nextReservation.arrivalTime,
+              guests: nextReservation.guests,
+              status: nextReservation.status,
+            }
+          : null,
       };
     });
 
@@ -78,6 +108,9 @@ export class TablesService {
 
         // ✅ Ignore cette résa si c’est la résa qu’on est en train de modifier
         if (excludeResaId && res.id === excludeResaId) return false;
+
+        // ✅ Ignore les réservations terminées - tables disponibles
+        if (res.isFinished === true) return false;
 
         const resStart = new Date(
           `${res.date.toISOString().split('T')[0]}T${res.arrivalTime.toISOString().split('T')[1]}`,

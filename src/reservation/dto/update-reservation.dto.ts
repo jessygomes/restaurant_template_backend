@@ -5,6 +5,7 @@ export class UpdateReservationDto {
   arrivalTime?: string; // Format ISO
   guests?: number;
   status?: 'Attente' | 'Confirmée' | 'Annulée';
+  isFinished?: boolean; // Indique si le rendez-vous est terminé ou non, par défaut false
   tableIds?: string[];
   client: {
     id: string;

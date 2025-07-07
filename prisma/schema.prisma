@@ -90,10 +90,11 @@ model Reservation {
   isPrivate       Boolean            @default(false) // 👈 privatisation ou non
   privateFrom     DateTime?          // Heure de début de privatisation
   privateTo       DateTime?          // Heure de fin de privatisation
+  isFinished      Boolean?            @default(false) // Si le rendez-vous est terminé ou non
 
   // Relation avec User (nouvelle relation)
-  user            User               @relation(fields: [userId], references: [id])
-  userId          String             // ID du salon propriétaire du rendez-vous
+  user            User?               @relation(fields: [userId], references: [id])
+  userId          String?             // ID du salon propriétaire du rendez-vous
 
   clientId        String?            // ID du client (facultatif)
   client          Client?            @relation(fields: [clientId], references: [id])
@@ -152,8 +153,8 @@ model TimeSlot {
 //! CLIENT & FICHE CLIENT
 model Client {
   id                  String   @id @default(cuid())
-  userId              String   // Salon propriétaire de la fiche client
-  user                User     @relation(fields: [userId], references: [id])
+  userId              String?   // Salon propriétaire de la fiche client
+  user                User?     @relation(fields: [userId], references: [id])
   
   firstName           String
   lastName            String

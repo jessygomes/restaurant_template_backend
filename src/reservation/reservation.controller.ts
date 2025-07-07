@@ -27,8 +27,8 @@ export class ReservationController {
 
   //! VOIR TOUTES LES RESA
   @Get('all')
-  async getAllReservations(@Query('userId') userId: string) {
-    return this.reservationService.getAllReservations(userId);
+  async getAllReservations() {
+    return this.reservationService.getAllReservations();
   }
 
   //! VOIR UNE RESA PAR ID
@@ -68,6 +68,12 @@ export class ReservationController {
     @Body() dto: UpdateReservationDto,
   ) {
     return this.reservationService.updateReservation(resaId, dto);
+  }
+
+  //! TERMINER UNE RESERVATION
+  @Patch('finish/:resaId')
+  async closeReservation(@Param('resaId') resaId: string) {
+    return this.reservationService.closeReservation(resaId);
   }
 
   //! ANNULER UNE RESERVATION

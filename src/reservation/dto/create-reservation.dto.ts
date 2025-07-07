@@ -16,4 +16,6 @@ export class CreateReservationDto {
     email: string;
     phone: string;
   };
+
+  isFinished?: boolean; // Indique si le rendez-vous est terminé ou non, par défaut false
 }

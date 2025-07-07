@@ -22,6 +22,7 @@ export class ReservationService {
 
   //! RESERVER UNE TABLE
   async createReservation(dto: CreateReservationDto) {
+    console.log('Création de réservation côté client:', dto);
     try {
       // Vérifier si le client existe déjà dans la base de données
       const existingClient = await this.prisma.client.findUnique({
@@ -41,11 +42,14 @@ export class ReservationService {
           },
         }));
 
+      const date = new Date(dto.date);
+      const arrival = new Date(`${dto.date}T${dto.arrivalTime}`); // date complète avec l’heure
+
       // Vérifier si une réservation existe déjà pour cette date et heure
       const existingReservation = await this.prisma.reservation.findFirst({
         where: {
           date: new Date(dto.date),
-          arrivalTime: new Date(dto.arrivalTime),
+          arrivalTime: arrival,
           clientId: client.id,
         },
       });
@@ -59,13 +63,31 @@ export class ReservationService {
       // Créer une nouvelle réservation
       const reservation = await this.prisma.reservation.create({
         data: {
-          date: new Date(dto.date),
-          arrivalTime: new Date(dto.arrivalTime),
+          date,
+          arrivalTime: arrival,
           guests: dto.guests,
           userId: dto.userId,
           clientId: client.id,
           status: 'Attente', // Enum
+          isFinished: false, // Indiquer que le client n'est pas terminé
         },
+      });
+
+      console.log('Réservation créée:', reservation);
+
+      await this.mailService.sendMail({
+        to: 'inthegleam01@gmail.com',
+        subject: 'NOUVELLE DEMANDE DE RESERVATION 🍽️',
+        html: `
+            <h2>Bonjour,</h2>
+            <p>Votre avez une nouvelle demande de réservation.</p>
+            <ul>
+              <li><strong>Date :</strong> ${reservation.date.toLocaleDateString()}</li>
+              <li><strong>Heure :</strong> ${reservation.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</li>
+              <li><strong>Nombre de personnes :</strong> ${reservation.guests}</li>
+            </ul>
+            <p>Confirmez la réservation depuis l'espace Administration !</p>
+          `,
       });
 
       return reservation;
@@ -107,6 +129,7 @@ export class ReservationService {
                 date: reservation.date,
                 arrivalTime: reservation.arrivalTime,
                 status: 'Confirmée',
+                isFinished: false, // Exclure les réservations terminées
               },
             },
           },
@@ -195,6 +218,7 @@ export class ReservationService {
             date,
             arrivalTime: arrival,
             status: 'Confirmée',
+            isFinished: false, // Exclure les réservations terminées
           },
         },
       });
@@ -245,7 +269,6 @@ export class ReservationService {
 
   //! MODIFIER UNE RESERVATION
   async updateReservation(resaId: string, dto: UpdateReservationDto) {
-    console.log('Mise à jour de la réservation:', resaId, dto);
     try {
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: resaId },
@@ -273,6 +296,7 @@ export class ReservationService {
               date,
               arrivalTime,
               status: reservation.status, // Vérifier le même statut
+              isFinished: false, // Exclure les réservations terminées
             },
           },
         });
@@ -350,6 +374,7 @@ export class ReservationService {
           arrivalTime,
           guests: dto.guests ?? reservation.guests,
           status: dto.status ?? reservation.status, // Garder le statut actuel si non fourni
+          isFinished: dto.isFinished ?? reservation.isFinished, // Garder l'état terminé si non fourni
         },
       });
 
@@ -357,6 +382,34 @@ export class ReservationService {
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la réservation:', error);
       throw new Error('Erreur lors de la mise à jour de la réservation');
+    }
+  }
+
+  //! CLOTURER UNE RESERVATION (côté admin)
+  async closeReservation(reservationId: string) {
+    try {
+      const reservation = await this.prisma.reservation.findUnique({
+        where: { id: reservationId },
+      });
+
+      if (!reservation) {
+        throw new NotFoundException('Réservation introuvable');
+      }
+
+      if (reservation.isFinished) {
+        throw new BadRequestException('La réservation est déjà clôturée');
+      }
+
+      // Mettre à jour le statut
+      await this.prisma.reservation.update({
+        where: { id: reservationId },
+        data: { isFinished: true },
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Erreur lors de la clôture de la réservation:', error);
+      throw new Error('Erreur lors de la clôture de la réservation');
     }
   }
 
@@ -398,7 +451,7 @@ export class ReservationService {
           subject: 'Annulation de votre réservation ❌',
           html: `
             <h2>Bonjour ${reservation.client.firstName},</h2>
-            <p>Nous vous informons que votre réservation au restaurant <strong>${reservation.user.restaurantName ?? 'notre établissement'}</strong> a été <strong>annulée</strong>.</p>
+            <p>Nous vous informons que votre réservation au restaurant <strong>${reservation.user?.restaurantName ?? 'notre établissement'}</strong> a été <strong>annulée</strong>.</p>
             <ul>
               <li><strong>Date :</strong> ${reservation.date.toLocaleDateString()}</li>
               <li><strong>Heure :</strong> ${reservation.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</li>
@@ -429,7 +482,6 @@ export class ReservationService {
 
     return this.prisma.reservation.findMany({
       where: {
-        userId,
         date: {
           gte: startOfDay,
           lte: endOfDay,
@@ -448,11 +500,8 @@ export class ReservationService {
   }
 
   //! VOIR TOUTES MES RESERVATIONS
-  async getAllReservations(userId: string) {
+  async getAllReservations() {
     return this.prisma.reservation.findMany({
-      where: {
-        userId,
-      },
       include: {
         client: true,
         tables: {
@@ -538,7 +587,7 @@ export class ReservationService {
         subject: 'Annulation de votre réservation ❌',
         html: `
           <h2>Bonjour ${reservation.client.firstName},</h2>
-          <p>Nous vous informons que votre réservation au restaurant <strong>${reservation.user.restaurantName ?? 'notre établissement'}</strong> a été <strong>annulée</strong>.</p>
+          <p>Nous vous informons que votre réservation au restaurant <strong>${reservation.user?.restaurantName ?? 'notre établissement'}</strong> a été <strong>annulée</strong>.</p>
           <ul>
             <li><strong>Date :</strong> ${reservation.date.toLocaleDateString()}</li>
             <li><strong>Heure :</strong> ${reservation.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</li>
